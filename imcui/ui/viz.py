@@ -236,13 +236,30 @@ def fig2im(fig: matplotlib.figure.Figure) -> np.ndarray:
         fig: A matplotlib figure.
 
     Returns:
-        A numpy array with shape (height, width, 3) and dtype uint8 containing
+        A numpy array with shape (physical_height, physical_width, 3) and dtype uint8 containing
         the RGB values of the figure.
     """
     fig.canvas.draw()
-    (width, height) = fig.canvas.get_width_height()
-    buf_ndarray = np.frombuffer(fig.canvas.tostring_rgb(), dtype="u1")
-    return buf_ndarray.reshape(height, width, 3)
+    buf = fig.canvas.tostring_rgb()
+    buf_ndarray = np.frombuffer(buf, dtype=np.uint8)
+    # Get the logical dimensions (might be smaller than the actual pixel dimensions)
+    w, h = fig.canvas.get_width_height()
+    
+    # Total number of pixels in the buffer (dividing by 3 because of RGB channels)
+    total_pixels = buf_ndarray.size // 3
+    
+    # Calculate the scale factor s such that (w * s) * (h * s) matches the total number of pixels
+    # We round to the nearest integer. It should be exact (e.g., 2 for a Retina display).
+    s = int(np.round(np.sqrt((total_pixels) / (w * h))))
+    
+    physical_width = w * s
+    physical_height = h * s
+    
+    # Check that our dimensions are consistent with the buffer size
+    if physical_width * physical_height * 3 != buf_ndarray.size:
+        raise ValueError("Buffer size does not match computed physical dimensions.")
+    
+    return buf_ndarray.reshape(physical_height, physical_width, 3)
 
 
 def draw_matches_core(
